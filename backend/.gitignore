@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Backend .gitignore
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment — NEVER commit
+.env
+.env.*
+!.env.example
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Prisma generated client (regenerated from schema on npm install)
+# Keep: prisma/schema.prisma and prisma/migrations/

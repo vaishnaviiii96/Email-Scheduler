@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Frontend .gitignore
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+
+# Environment — NEVER commit
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# TypeScript cache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Vercel
+.vercel/
+
+# Logs
+*.log
+
+# AI artifacts
+AGENTS.md
+CLAUDE.md
