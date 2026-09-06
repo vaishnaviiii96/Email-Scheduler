@@ -19,6 +19,11 @@ export interface EmailJob {
   error: string | null;
   createdAt: string;
   updatedAt: string;
+  attachments?: {
+    filename: string;
+    content: string;
+    contentType: string;
+  }[] | null;
   sender?: {
     email: string;
   };

@@ -104,10 +104,55 @@ export function EmailDetail({ email, onBack }: EmailDetailProps) {
         )}
 
         {/* Email body */}
-        <div
-          className="text-[14px] text-[#1A1A1A] leading-relaxed prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: email.body }}
-        />
+        <div className="text-[14px] text-[#1A1A1A] leading-relaxed max-w-none">
+          <style>{`
+            .email-body blockquote {
+              background-color: #FFF9E6 !important;
+              border-left: 4px solid #FFCC00 !important;
+              padding: 12px 16px !important;
+              margin: 16px 0 !important;
+              color: #1A1A1A !important;
+            }
+          `}</style>
+          <div
+            className="email-body"
+            dangerouslySetInnerHTML={{ __html: email.body }}
+          />
+
+          {/* Render Inline Images */}
+          {email.attachments && email.attachments.filter(a => a.contentType.startsWith('image/')).length > 0 && (
+            <div className="mt-6 flex flex-col gap-4">
+              {email.attachments
+                .filter(a => a.contentType.startsWith('image/'))
+                .map((a, i) => (
+                  <img
+                    key={i}
+                    src={`data:${a.contentType};base64,${a.content}`}
+                    alt={a.filename}
+                    className="max-w-full rounded-lg"
+                  />
+                ))}
+            </div>
+          )}
+
+          {/* Render Non-Image Attachments */}
+          {email.attachments && email.attachments.filter(a => !a.contentType.startsWith('image/')).length > 0 && (
+            <div className="mt-8 border-t border-[#E8E8E8] pt-4 flex gap-3 flex-wrap">
+              {email.attachments
+                .filter(a => !a.contentType.startsWith('image/'))
+                .map((a, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 border border-[#E8E8E8] rounded-lg bg-[#F5F5F5]">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[#9E9E9E]">
+                      <path d="M13 8L7.5 13.5C6.12 14.88 3.88 14.88 2.5 13.5C1.12 12.12 1.12 9.88 2.5 8.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    <div>
+                      <p className="text-[11px] text-[#1A1A1A] font-medium">{a.filename}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Metadata footer */}
