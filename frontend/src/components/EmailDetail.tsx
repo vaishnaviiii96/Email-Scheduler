@@ -119,37 +119,37 @@ export function EmailDetail({ email, onBack }: EmailDetailProps) {
             dangerouslySetInnerHTML={{ __html: email.body }}
           />
 
-          {/* Render Inline Images */}
-          {email.attachments && email.attachments.filter(a => a.contentType.startsWith('image/')).length > 0 && (
-            <div className="mt-6 flex flex-col gap-4">
-              {email.attachments
-                .filter(a => a.contentType.startsWith('image/'))
-                .map((a, i) => (
-                  <img
-                    key={i}
-                    src={`data:${a.contentType};base64,${a.content}`}
-                    alt={a.filename}
-                    className="max-w-full rounded-lg"
-                  />
-                ))}
-            </div>
-          )}
-
-          {/* Render Non-Image Attachments */}
-          {email.attachments && email.attachments.filter(a => !a.contentType.startsWith('image/')).length > 0 && (
-            <div className="mt-8 border-t border-[#E8E8E8] pt-4 flex gap-3 flex-wrap">
-              {email.attachments
-                .filter(a => !a.contentType.startsWith('image/'))
-                .map((a, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 border border-[#E8E8E8] rounded-lg bg-[#F5F5F5]">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[#9E9E9E]">
-                      <path d="M13 8L7.5 13.5C6.12 14.88 3.88 14.88 2.5 13.5C1.12 12.12 1.12 9.88 2.5 8.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                    <div>
-                      <p className="text-[11px] text-[#1A1A1A] font-medium">{a.filename}</p>
+          {/* Render Attachments */}
+          {email.attachments && email.attachments.length > 0 && (
+            <div className="mt-8 border-t border-[#E8E8E8] pt-6 flex gap-4 flex-wrap">
+              {email.attachments.map((a, i) => {
+                const isImage = a.contentType.startsWith('image/');
+                const sizeMb = ((a.content.length * 3) / 4 / (1024 * 1024)).toFixed(1);
+                
+                return (
+                  <div key={i} className="w-[200px] rounded-lg border border-[#E8E8E8] overflow-hidden bg-[#F9F9F9] flex flex-col">
+                    {/* Thumbnail area */}
+                    <div className="h-[120px] w-full bg-[#F5F5F5] flex items-center justify-center overflow-hidden">
+                      {isImage ? (
+                        <img
+                          src={`data:${a.contentType};base64,${a.content}`}
+                          alt={a.filename}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <svg width="32" height="32" viewBox="0 0 16 16" fill="none" className="text-[#9E9E9E]">
+                          <path d="M13 8L7.5 13.5C6.12 14.88 3.88 14.88 2.5 13.5C1.12 12.12 1.12 9.88 2.5 8.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      )}
+                    </div>
+                    {/* Info area */}
+                    <div className="p-3 border-t border-[#E8E8E8] bg-white">
+                      <p className="text-[12px] text-[#1A1A1A] font-medium truncate">{a.filename}</p>
+                      <p className="text-[11px] text-[#9E9E9E] mt-0.5">{sizeMb} MB</p>
                     </div>
                   </div>
-                ))}
+                );
+              })}
             </div>
           )}
         </div>
