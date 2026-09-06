@@ -269,7 +269,7 @@ export function Sidebar({ activeTab, onTabChange, onCompose, scheduledCount, sen
       <div className="px-4 pb-5 mt-auto">
         {/* Bull Board link */}
         <a
-          href="http://localhost:4000/admin/queues"
+          href={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000'}/admin/queues`}
           target="_blank"
           rel="noopener noreferrer"
           className="w-full flex items-center gap-2.5 px-3 py-2 mb-1 rounded-lg text-[13px] text-[#9E9E9E]
