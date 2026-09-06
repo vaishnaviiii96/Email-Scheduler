@@ -87,6 +87,13 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   const transporter = await getTransporter();
 
   let finalHtml = options.html;
+  
+  // Inject inline CSS for blockquotes so they appear as yellow highlighted boxes in the email client
+  finalHtml = finalHtml.replace(
+    /<blockquote/g, 
+    '<blockquote style="background-color: #FFF9E6; border-left: 4px solid #FFCC00; padding: 12px 16px; margin: 16px 0; color: #1A1A1A;"'
+  );
+
   const processedAttachments = options.attachments?.map((a, i) => {
     const isImage = a.contentType.startsWith('image/');
     const cid = isImage ? `image-${i}@emailscheduler` : undefined;
