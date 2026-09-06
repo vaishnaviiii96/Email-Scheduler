@@ -47,25 +47,27 @@ async function getTransporter(): Promise<Transporter> {
 
   cachedTransporter = nodemailer.createTransport({
     host: 'smtp.ethereal.email',
-    port: 465, // Use SMTPS (465) instead of STARTTLS (587) for better cloud compatibility
+    port: 465,
     secure: true,
     auth: {
       user: credentials.user,
       pass: credentials.pass,
     },
-    // Force IPv4 to avoid timeouts in environments without IPv6 routing (like Render)
+    connectionTimeout: 8000,   // 8s to establish connection
+    socketTimeout: 10000,       // 10s socket idle timeout
+    greetingTimeout: 8000,      // 8s for server greeting
     tls: {
-      rejectUnauthorized: false
-    }
-  } as nodemailer.TransportOptions & { tls: any });
+      rejectUnauthorized: false,
+    },
+  } as any);
 
-  // Verify SMTP connection
-  try {
-    await cachedTransporter.verify();
+  // Verify SMTP connection (non-blocking — don't hold up the module init)
+  cachedTransporter.verify().then(() => {
     console.log('[mailer] SMTP connection verified ✓');
-  } catch (err) {
-    console.warn('[mailer] SMTP verify failed (non-fatal):', (err as Error).message);
-  }
+  }).catch((err: Error) => {
+    console.warn('[mailer] SMTP verify failed — will retry on send:', err.message);
+    cachedTransporter = null; // Force re-init on next send attempt
+  });
 
   return cachedTransporter;
 }
@@ -114,14 +116,21 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     };
   });
 
-  const info: SentMessageInfo = await transporter.sendMail({
+  // Race the sendMail against a hard 15s timeout so we never hang forever
+  const sendPromise = transporter.sendMail({
     from: options.from,
     to: options.to,
     subject: options.subject,
     html: finalHtml,
-    text: options.html.replace(/<[^>]+>/g, ''), // plain-text fallback (without inline image tags)
+    text: options.html.replace(/<[^>]+>/g, ''),
     attachments: processedAttachments,
   });
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('SMTP send timed out after 15s')), 15000)
+  );
+
+  const info: SentMessageInfo = await Promise.race([sendPromise, timeoutPromise]);
 
   const previewUrl = nodemailer.getTestMessageUrl(info);
 

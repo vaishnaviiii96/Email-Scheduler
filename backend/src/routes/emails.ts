@@ -147,15 +147,14 @@ emailsRouter.post('/send-now', async (req: Request, res: Response): Promise<void
   }
 
   const sentJobs = [];
-  const errors = [];
 
+  // Create all DB rows first (status: sent) so the frontend shows them immediately
   for (const recipient of recipients) {
     const recipientEmail = recipient.trim().toLowerCase();
     const idempotencyKey = createId();
     const now = new Date();
 
     try {
-      // Create DB row immediately as 'sent'
       const dbJob = await prisma.emailJob.create({
         data: {
           userId,
@@ -170,37 +169,39 @@ emailsRouter.post('/send-now', async (req: Request, res: Response): Promise<void
           idempotencyKey,
         },
       });
-
-      // Send synchronously
-      const { messageId, previewUrl } = await sendEmail({
-        from: sender.email,
-        to: recipientEmail,
-        subject,
-        html: body,
-        attachments,
-      });
-
-      console.log(`[api] send-now ✓ Sent ${messageId} to ${recipientEmail}`);
-      console.log(`[api] send-now   Preview: ${previewUrl}`);
-
-      // Index in Elasticsearch (non-blocking)
-      upsertEmailDoc({ ...dbJob, status: 'sent', sentAt: now }).catch(() => {});
-
-      sentJobs.push({ id: dbJob.id, recipientEmail, sentAt: now });
+      sentJobs.push({ id: dbJob.id, recipientEmail, sentAt: now, dbJob });
     } catch (err) {
-      const errorMsg = (err as Error).message;
-      console.error(`[api] send-now ✗ Failed for ${recipientEmail}:`, errorMsg);
-
-      // Mark as failed in DB if we managed to create the row
-      errors.push({ recipientEmail, error: errorMsg });
+      console.error(`[api] send-now DB create failed for ${recipientEmail}:`, (err as Error).message);
     }
   }
 
+  // Respond immediately so the UI never hangs
   res.status(200).json({
     scheduled: sentJobs.length,
-    jobs: sentJobs,
-    errors: errors.length > 0 ? errors : undefined,
+    jobs: sentJobs.map(({ id, recipientEmail, sentAt }) => ({ id, recipientEmail, sentAt })),
   });
+
+  // Fire SMTP delivery in the background (non-blocking)
+  for (const { recipientEmail, dbJob } of sentJobs) {
+    sendEmail({
+      from: sender.email,
+      to: recipientEmail,
+      subject,
+      html: body,
+      attachments,
+    }).then(({ messageId, previewUrl }) => {
+      console.log(`[api] send-now ✓ Sent ${messageId} to ${recipientEmail}`);
+      console.log(`[api] send-now   Preview: ${previewUrl}`);
+      upsertEmailDoc({ ...dbJob, status: 'sent', sentAt: dbJob.sentAt! }).catch(() => {});
+    }).catch((err: Error) => {
+      console.error(`[api] send-now ✗ SMTP failed for ${recipientEmail}:`, err.message);
+      // Mark as failed in DB
+      prisma.emailJob.update({
+        where: { id: dbJob.id },
+        data: { status: 'failed', error: err.message, updatedAt: new Date() },
+      }).catch(() => {});
+    });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
