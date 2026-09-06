@@ -51,7 +51,10 @@ export const config = {
   SLACK_CLIENT_ID: optional('SLACK_CLIENT_ID'),
   SLACK_CLIENT_SECRET: optional('SLACK_CLIENT_SECRET'),
 
-  // Ethereal SMTP (optional — auto-provisioned if empty)
+  // Resend HTTP email API (replaces Ethereal SMTP — works on Render)
+  RESEND_API_KEY: optional('RESEND_API_KEY', ''),
+
+  // Ethereal SMTP (legacy — kept for local dev fallback)
   ETHEREAL_USER: optional('ETHEREAL_USER'),
   ETHEREAL_PASS: optional('ETHEREAL_PASS'),
 

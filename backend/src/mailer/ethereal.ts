@@ -1,81 +1,15 @@
-import nodemailer, { Transporter, SentMessageInfo } from 'nodemailer';
+import { Resend } from 'resend';
 import { config } from '../config';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Ethereal SMTP Transport
+// Mailer — uses Resend HTTP API (no SMTP, works on all cloud providers)
 //
-// Ethereal is a fake SMTP service for testing — emails are captured and
-// viewable at https://ethereal.email. No real emails are delivered.
+// Resend sends emails via HTTPS, bypassing SMTP port blocks on Render/Railway etc.
+// Free tier: 3,000 emails/month.
 //
-// Auto-provisioning:
-// - If ETHEREAL_USER / ETHEREAL_PASS are set in .env, use those credentials.
-// - Otherwise, call nodemailer.createTestAccount() on first use to get a
-//   fresh test account. Credentials are cached in module scope.
-//
-// Preview URL:
-// - Every sent email produces a preview URL logged to console.
+// Set RESEND_API_KEY in environment variables.
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface EtherealCredentials {
-  user: string;
-  pass: string;
-}
-
-let cachedTransporter: Transporter | null = null;
-let cachedCredentials: EtherealCredentials | null = null;
-
-async function getTransporter(): Promise<Transporter> {
-  if (cachedTransporter) return cachedTransporter;
-
-  let credentials: EtherealCredentials;
-
-  if (config.ETHEREAL_USER && config.ETHEREAL_PASS) {
-    // Use credentials from .env
-    credentials = { user: config.ETHEREAL_USER, pass: config.ETHEREAL_PASS };
-    console.log(`[mailer] Using Ethereal credentials from env: ${credentials.user}`);
-  } else {
-    // Auto-create a test account
-    const testAccount = await nodemailer.createTestAccount();
-    credentials = { user: testAccount.user, pass: testAccount.pass };
-    console.log('[mailer] Auto-created Ethereal test account:');
-    console.log(`[mailer]   User: ${credentials.user}`);
-    console.log(`[mailer]   Pass: ${credentials.pass}`);
-    console.log('[mailer]   Preview emails at: https://ethereal.email');
-  }
-
-  cachedCredentials = credentials;
-
-  cachedTransporter = nodemailer.createTransport({
-    host: 'smtp.ethereal.email',
-    port: 465,
-    secure: true,
-    auth: {
-      user: credentials.user,
-      pass: credentials.pass,
-    },
-    connectionTimeout: 8000,   // 8s to establish connection
-    socketTimeout: 10000,       // 10s socket idle timeout
-    greetingTimeout: 8000,      // 8s for server greeting
-    tls: {
-      rejectUnauthorized: false,
-    },
-  } as any);
-
-  // Verify SMTP connection (non-blocking — don't hold up the module init)
-  cachedTransporter.verify().then(() => {
-    console.log('[mailer] SMTP connection verified ✓');
-  }).catch((err: Error) => {
-    console.warn('[mailer] SMTP verify failed — will retry on send:', err.message);
-    cachedTransporter = null; // Force re-init on next send attempt
-  });
-
-  return cachedTransporter;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// sendEmail — Send a single email via Ethereal SMTP
-// Returns messageId and previewUrl for logging
-// ─────────────────────────────────────────────────────────────────────────────
 export interface SendEmailOptions {
   from: string;
   to: string;
@@ -90,56 +24,71 @@ export interface SendEmailResult {
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
-  const transporter = await getTransporter();
+  const apiKey = (config as any).RESEND_API_KEY;
 
-  let finalHtml = options.html;
-  
-  // Inject inline CSS for blockquotes so they appear as yellow highlighted boxes in the email client
-  finalHtml = finalHtml.replace(
-    /<blockquote/g, 
-    '<blockquote style="background-color: #FFF9E6; border-left: 4px solid #FFCC00; padding: 12px 16px; margin: 16px 0; color: #1A1A1A;"'
+  // ── Inject blockquote inline styles ──────────────────────────────────────────
+  let finalHtml = options.html.replace(
+    /<blockquote/g,
+    '<blockquote style="background-color:#FFF9E6;border-left:4px solid #FFCC00;padding:12px 16px;margin:16px 0;color:#1A1A1A;"'
   );
 
-  const processedAttachments = options.attachments?.map((a, i) => {
-    const isImage = a.contentType.startsWith('image/');
-    const cid = isImage ? `image-${i}@emailscheduler` : undefined;
-    
-    // If it's an image, append it to the end of the HTML body so it renders inline!
-    if (isImage) {
-      finalHtml += `<br/><br/><img src="cid:${cid}" style="max-width: 100%; border-radius: 8px;" alt="${a.filename}" />`;
-    }
+  // ── Inline images as <img src="cid:..."> attachments ─────────────────────────
+  const resendAttachments: { filename: string; content: Buffer }[] = [];
 
+  if (options.attachments) {
+    options.attachments.forEach((a, i) => {
+      const isImage = a.contentType.startsWith('image/');
+      const buf = Buffer.from(a.content, 'base64');
+
+      if (isImage) {
+        const cid = `image-${i}@emailscheduler`;
+        finalHtml += `<br/><br/><img src="cid:${cid}" style="max-width:100%;border-radius:8px;" alt="${a.filename}" />`;
+      }
+
+      resendAttachments.push({ filename: a.filename, content: buf });
+    });
+  }
+
+  if (!apiKey || apiKey === '') {
+    // ── Simulation mode (no API key configured) ─────────────────────────────
+    console.log('[mailer] No RESEND_API_KEY set — simulating email send');
+    console.log(`[mailer]   From: ${options.from}`);
+    console.log(`[mailer]   To:   ${options.to}`);
+    console.log(`[mailer]   Subject: ${options.subject}`);
     return {
-      ...a,
-      encoding: 'base64',
-      cid,
+      messageId: `sim-${Date.now()}@emailscheduler`,
+      previewUrl: false,
     };
-  });
+  }
 
-  // Race the sendMail against a hard 15s timeout so we never hang forever
-  const sendPromise = transporter.sendMail({
-    from: options.from,
-    to: options.to,
+  const resend = new Resend(apiKey);
+
+  // Resend requires the "from" address to use a verified domain.
+  // Use a fixed onboarding address for demo purposes, and set replyTo = sender.
+  const fromAddress = `Email Scheduler <onboarding@resend.dev>`;
+
+  const { data, error } = await resend.emails.send({
+    from: fromAddress,
+    to: [options.to],
+    reply_to: options.from,
     subject: options.subject,
     html: finalHtml,
-    text: options.html.replace(/<[^>]+>/g, ''),
-    attachments: processedAttachments,
+    attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
   });
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('SMTP send timed out after 15s')), 15000)
-  );
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`);
+  }
 
-  const info: SentMessageInfo = await Promise.race([sendPromise, timeoutPromise]);
-
-  const previewUrl = nodemailer.getTestMessageUrl(info);
+  console.log(`[mailer] Resend ✓ messageId=${data?.id}`);
 
   return {
-    messageId: info.messageId,
-    previewUrl,
+    messageId: data?.id || 'unknown',
+    previewUrl: false, // Resend doesn't provide a preview URL
   };
 }
 
-export function getCachedCredentials(): EtherealCredentials | null {
-  return cachedCredentials;
+// Kept for backward compatibility (no-op now)
+export function getCachedCredentials() {
+  return null;
 }
