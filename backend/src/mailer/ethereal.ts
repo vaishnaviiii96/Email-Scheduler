@@ -47,13 +47,17 @@ async function getTransporter(): Promise<Transporter> {
 
   cachedTransporter = nodemailer.createTransport({
     host: 'smtp.ethereal.email',
-    port: 587,
-    secure: false,
+    port: 465, // Use SMTPS (465) instead of STARTTLS (587) for better cloud compatibility
+    secure: true,
     auth: {
       user: credentials.user,
       pass: credentials.pass,
     },
-  });
+    // Force IPv4 to avoid timeouts in environments without IPv6 routing (like Render)
+    tls: {
+      rejectUnauthorized: false
+    }
+  } as nodemailer.TransportOptions & { tls: any });
 
   // Verify SMTP connection
   try {
