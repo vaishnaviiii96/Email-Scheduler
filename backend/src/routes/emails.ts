@@ -5,6 +5,7 @@ import { requireAuth, JwtPayload } from '../middleware/auth';
 import { enqueueEmailJob } from '../queue/emailQueue';
 import { upsertEmailDoc, searchEmails } from '../elasticsearch/emailIndex';
 import { EmailJobData } from '../queue/emailQueue';
+import { sendEmail } from '../mailer/ethereal';
 
 export const emailsRouter = Router();
 
@@ -121,6 +122,83 @@ emailsRouter.post('/schedule', async (req: Request, res: Response): Promise<void
   res.status(201).json({
     scheduled: createdJobs.length,
     jobs: createdJobs,
+    errors: errors.length > 0 ? errors : undefined,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/emails/send-now
+// Sends emails immediately (synchronously) — bypasses BullMQ queue.
+// Used when the user clicks "Send" without choosing a future time.
+// ─────────────────────────────────────────────────────────────────────────────
+emailsRouter.post('/send-now', async (req: Request, res: Response): Promise<void> => {
+  const { subject, body, recipients, senderId, attachments } = req.body;
+  const userId = (req.user as JwtPayload).userId;
+
+  if (!subject || !body || !recipients?.length || !senderId) {
+    res.status(400).json({ error: 'Missing required fields: subject, body, recipients, senderId' });
+    return;
+  }
+
+  const sender = await prisma.sender.findFirst({ where: { id: senderId, userId } });
+  if (!sender) {
+    res.status(403).json({ error: 'Sender not found or does not belong to you' });
+    return;
+  }
+
+  const sentJobs = [];
+  const errors = [];
+
+  for (const recipient of recipients) {
+    const recipientEmail = recipient.trim().toLowerCase();
+    const idempotencyKey = createId();
+    const now = new Date();
+
+    try {
+      // Create DB row immediately as 'sent'
+      const dbJob = await prisma.emailJob.create({
+        data: {
+          userId,
+          senderId,
+          recipientEmail,
+          subject,
+          body,
+          attachments: attachments || null,
+          scheduledAt: now,
+          sentAt: now,
+          status: 'sent',
+          idempotencyKey,
+        },
+      });
+
+      // Send synchronously
+      const { messageId, previewUrl } = await sendEmail({
+        from: sender.email,
+        to: recipientEmail,
+        subject,
+        html: body,
+        attachments,
+      });
+
+      console.log(`[api] send-now ✓ Sent ${messageId} to ${recipientEmail}`);
+      console.log(`[api] send-now   Preview: ${previewUrl}`);
+
+      // Index in Elasticsearch (non-blocking)
+      upsertEmailDoc({ ...dbJob, status: 'sent', sentAt: now }).catch(() => {});
+
+      sentJobs.push({ id: dbJob.id, recipientEmail, sentAt: now });
+    } catch (err) {
+      const errorMsg = (err as Error).message;
+      console.error(`[api] send-now ✗ Failed for ${recipientEmail}:`, errorMsg);
+
+      // Mark as failed in DB if we managed to create the row
+      errors.push({ recipientEmail, error: errorMsg });
+    }
+  }
+
+  res.status(200).json({
+    scheduled: sentJobs.length,
+    jobs: sentJobs,
     errors: errors.length > 0 ? errors : undefined,
   });
 });

@@ -49,9 +49,16 @@ async function apiFetch<T>(
 // API methods
 // ─────────────────────────────────────────────────────────────────────────────
 export const api = {
-  // Email scheduling
+  // Email scheduling (future time)
   scheduleEmails: (body: ScheduleRequest) =>
     apiFetch<ScheduleResponse>('/api/emails/schedule', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Immediate send (bypasses queue, shows in Sent instantly)
+  sendNow: (body: { subject: string; body: string; recipients: string[]; senderId: string; attachments?: ScheduleRequest['attachments'] }) =>
+    apiFetch<ScheduleResponse>('/api/emails/send-now', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

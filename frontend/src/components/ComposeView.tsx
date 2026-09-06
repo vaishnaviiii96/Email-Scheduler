@@ -169,6 +169,7 @@ export function ComposeView({ onBack, onScheduled, userId }: ComposeViewProps) {
     }
 
     const effectiveStartTime = scheduleTime || new Date().toISOString();
+    const isImmediate = !scheduleTime;
 
     setSending(true);
     try {
@@ -183,24 +184,37 @@ export function ComposeView({ onBack, onScheduled, userId }: ComposeViewProps) {
         })
       );
 
-      const { data, error: apiError } = await api.scheduleEmails({
-        subject,
-        body,
-        recipients: recipients.map((r) => r.email),
-        senderId: selectedSenderId,
-        startTime: effectiveStartTime,
-        delayBetweenEmailsMs: delayMs,
-        maxEmailsPerHour: hourlyLimit,
-        attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
-      });
+      let data, apiError;
+
+      if (isImmediate) {
+        // Send immediately — bypasses queue, shows in Sent tab right away
+        ({ data, error: apiError } = await api.sendNow({
+          subject,
+          body,
+          recipients: recipients.map((r) => r.email),
+          senderId: selectedSenderId,
+          attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
+        }));
+      } else {
+        // Schedule for a future time via BullMQ queue
+        ({ data, error: apiError } = await api.scheduleEmails({
+          subject,
+          body,
+          recipients: recipients.map((r) => r.email),
+          senderId: selectedSenderId,
+          startTime: effectiveStartTime,
+          delayBetweenEmailsMs: delayMs,
+          maxEmailsPerHour: hourlyLimit,
+          attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
+        }));
+      }
 
       if (apiError) {
         setError(apiError);
         return;
       }
 
-      const isImmediate = !scheduleTime;
-      setSuccess(`${data?.scheduled} email${(data?.scheduled || 0) !== 1 ? 's' : ''} ${isImmediate ? 'queued for delivery!' : 'scheduled successfully!'}`);
+      setSuccess(`${data?.scheduled} email${(data?.scheduled || 0) !== 1 ? 's' : ''} ${isImmediate ? 'sent!' : 'scheduled successfully!'}`);
       setTimeout(() => {
         onScheduled?.(isImmediate);
         onBack();
