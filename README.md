@@ -6,6 +6,14 @@ A production-grade, full-stack email scheduling platform. Schedule bulk email ca
 
 ---
 
+## Demo Video
+
+![ON8 Email Scheduler Demo](demo.webp)
+
+*Demo covers: Login, Dashboard, Compose Flow (Rich Text, Multi-recipient, Schedule Later), Rate Limiting alerts (via Slack), Queue processing (Bull Board), and Search.*
+
+---
+
 ## Table of Contents
 
 - [Features](#features)
