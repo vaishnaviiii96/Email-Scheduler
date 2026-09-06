@@ -8,7 +8,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 // /auth/callback — Receives the JWT from the backend OAuth redirect,
 // signs in to NextAuth, then redirects to dashboard.
 // ─────────────────────────────────────────────────────────────────────────────
-export default function AuthCallbackPage() {
+import { Suspense } from 'react';
+
+function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status } = useSession();
@@ -39,5 +41,17 @@ export default function AuthCallbackPage() {
       <div className="w-10 h-10 border-2 border-[#00A859] border-t-transparent rounded-full animate-spin" />
       <p className="text-[14px] text-[#666666]">Signing you in...</p>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#F9F9F9] flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 border-2 border-[#00A859] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <CallbackContent />
+    </Suspense>
   );
 }
