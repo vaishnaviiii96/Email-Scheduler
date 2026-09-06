@@ -43,8 +43,8 @@ export default function DashboardPage() {
   }, [status, router]);
 
   // Load emails on mount and tab change
-  const loadEmails = useCallback(async () => {
-    setLoading(true);
+  const loadEmails = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const [scheduledRes, sentRes] = await Promise.all([
         api.getScheduled(),
@@ -62,7 +62,7 @@ export default function DashboardPage() {
     } catch (err) {
       console.error('Failed to load emails:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, []);
 
@@ -75,7 +75,7 @@ export default function DashboardPage() {
   // Poll for updates every 3s (for real-time status changes)
   useEffect(() => {
     if (status !== 'authenticated') return;
-    const interval = setInterval(loadEmails, 3_000);
+    const interval = setInterval(() => loadEmails(true), 3_000);
     return () => clearInterval(interval);
   }, [status, loadEmails]);
 
