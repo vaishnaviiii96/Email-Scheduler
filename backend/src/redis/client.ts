@@ -7,11 +7,18 @@ import { config } from '../config';
 // This client is used for: rate-limit counters, lastSentAt tracking, etc.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const redis = new Redis(config.REDIS_URL, {
+const redisOptions = {
   maxRetriesPerRequest: null, // Required by BullMQ connection pattern
   enableReadyCheck: false,
   lazyConnect: false,
-});
+  ...(config.REDIS_URL.startsWith('rediss://') && {
+    tls: {
+      rejectUnauthorized: false,
+    },
+  }),
+};
+
+export const redis = new Redis(config.REDIS_URL, redisOptions);
 
 redis.on('error', (err) => {
   console.error('[redis] Connection error:', err.message);
@@ -28,5 +35,10 @@ export function createBullMQRedisConnection() {
   return new Redis(config.REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
+    ...(config.REDIS_URL.startsWith('rediss://') && {
+      tls: {
+        rejectUnauthorized: false,
+      },
+    }),
   });
 }
