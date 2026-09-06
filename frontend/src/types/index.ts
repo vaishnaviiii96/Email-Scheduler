@@ -46,6 +46,11 @@ export interface ScheduleRequest {
   startTime: string; // ISO string
   delayBetweenEmailsMs: number;
   maxEmailsPerHour: number;
+  attachments?: {
+    filename: string;
+    content: string;
+    contentType: string;
+  }[];
 }
 
 export interface ApiResponse<T> {
