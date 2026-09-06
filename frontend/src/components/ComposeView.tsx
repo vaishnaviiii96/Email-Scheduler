@@ -19,7 +19,7 @@ const ReactQuill = dynamic(() => import('react-quill-new'), {
 
 interface ComposeViewProps {
   onBack: () => void;
-  onScheduled?: () => void;
+  onScheduled?: (isImmediate?: boolean) => void;
   userId?: string;
 }
 
@@ -199,9 +199,10 @@ export function ComposeView({ onBack, onScheduled, userId }: ComposeViewProps) {
         return;
       }
 
-      setSuccess(`${data?.scheduled} email${(data?.scheduled || 0) !== 1 ? 's' : ''} scheduled successfully!`);
+      const isImmediate = !scheduleTime;
+      setSuccess(`${data?.scheduled} email${(data?.scheduled || 0) !== 1 ? 's' : ''} ${isImmediate ? 'queued for delivery!' : 'scheduled successfully!'}`);
       setTimeout(() => {
-        onScheduled?.();
+        onScheduled?.(isImmediate);
         onBack();
       }, 1500);
     } catch (err) {

@@ -72,10 +72,10 @@ export default function DashboardPage() {
     }
   }, [status, loadEmails]);
 
-  // Poll for updates every 30s (for real-time status changes)
+  // Poll for updates every 3s (for real-time status changes)
   useEffect(() => {
     if (status !== 'authenticated') return;
-    const interval = setInterval(loadEmails, 30_000);
+    const interval = setInterval(loadEmails, 3_000);
     return () => clearInterval(interval);
   }, [status, loadEmails]);
 
@@ -162,7 +162,10 @@ export default function DashboardPage() {
                 setView('list');
                 setSelectedEmail(null);
               }}
-              onScheduled={loadEmails}
+              onScheduled={(isImmediate) => {
+                if (isImmediate) setActiveTab('sent');
+                loadEmails();
+              }}
               userId={session?.userId}
             />
           ) : view === 'detail' && selectedEmail ? (
