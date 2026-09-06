@@ -94,14 +94,17 @@ async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
   const currentCount = await redis.incr(hourKey);
   await redis.expire(hourKey, 7200);
 
-  if (currentCount > config.MAX_EMAILS_PER_HOUR_PER_SENDER) {
+  // Use per-job limit if provided, otherwise fall back to global config
+  const effectiveHourlyLimit = job.data.maxEmailsPerHour ?? config.MAX_EMAILS_PER_HOUR_PER_SENDER;
+
+  if (currentCount > effectiveHourlyLimit) {
     // Rollback — this send won't happen in this hour window
     await redis.decr(hourKey);
 
     const delayMs = msUntilNextUTCHour();
     console.log(
       `[worker] Rate limit hit for sender ${senderId} ` +
-      `(${currentCount - 1}/${config.MAX_EMAILS_PER_HOUR_PER_SENDER}). ` +
+      `(${currentCount - 1}/${effectiveHourlyLimit}). ` +
       `Rescheduling in ${Math.round(delayMs / 1000)}s`
     );
 

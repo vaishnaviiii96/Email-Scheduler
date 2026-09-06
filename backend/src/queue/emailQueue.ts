@@ -19,6 +19,8 @@ export interface EmailJobData {
   body: string;
   attachments?: { filename: string; content: string; contentType: string }[];
   scheduledAt: string; // ISO string
+  /** Per-job hourly rate limit — set by user in the compose form */
+  maxEmailsPerHour?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

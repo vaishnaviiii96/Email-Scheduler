@@ -91,6 +91,7 @@ emailsRouter.post('/schedule', async (req: Request, res: Response): Promise<void
         body,
         attachments,
         scheduledAt: scheduledAt.toISOString(),
+        maxEmailsPerHour: maxEmailsPerHour ? Number(maxEmailsPerHour) : undefined,
       };
 
       const bullJobId = await enqueueEmailJob(jobData, scheduledAt);
