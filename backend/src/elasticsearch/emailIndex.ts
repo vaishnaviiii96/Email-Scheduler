@@ -78,6 +78,10 @@ export async function createEmailIndex(): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function upsertEmailDoc(job: Partial<EmailJob> & { id: string }): Promise<void> {
   try {
+    // Skip silently if ES is not reachable — avoid noisy error logs on every send
+    const available = await isEsAvailable();
+    if (!available) return;
+
     const doc: Partial<EmailDocument> = {
       id: job.id,
       userId: job.userId,
