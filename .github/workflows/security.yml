@@ -1,0 +1,149 @@
+name: Secret & Dependency Scanning
+
+on:
+  push:
+    branches: ["main", "master", "develop"]
+  pull_request:
+    branches: ["main", "master", "develop"]
+  schedule:
+    # Run a full scan every Sunday at 02:00 UTC to catch newly-published
+    # detectors and secrets committed in non-PR branches.
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read          # checkout
+  security-events: write  # upload SARIF to GitHub Advanced Security
+
+jobs:
+  # ── 1. TruffleHog Secret Scanning ──────────────────────────────────────────
+  trufflehog:
+    name: TruffleHog Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so TruffleHog can diff against the base branch
+          fetch-depth: 0
+
+      - name: Run TruffleHog (diff scan on PRs, full scan on push/schedule)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          # On a PR, scan only the commits added in this PR.
+          # On push / schedule, scan the entire repo history.
+          extra_args: >-
+            ${{ github.event_name == 'pull_request'
+              && format('--since-commit {0} --branch {1} --fail',
+                        github.event.pull_request.base.sha,
+                        github.head_ref)
+              || '--only-verified --fail' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload SARIF so findings appear in the Security → Code scanning tab
+      - name: Upload TruffleHog SARIF (if present)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trufflehog.sarif
+        continue-on-error: true   # SARIF file is only created when findings exist
+
+  # ── 2. npm audit — Backend ──────────────────────────────────────────────────
+  audit-backend:
+    name: npm audit · Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies (CI mode — no scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Run npm audit (fail on high/critical CVEs)
+        # --audit-level=high  → exit 1 only for high or critical severities
+        # --json              → machine-readable output for the next step
+        run: npm audit --audit-level=high --json | tee audit-backend.json || true
+
+      - name: Display audit summary
+        if: always()
+        run: |
+          echo "### Backend npm audit results" >> $GITHUB_STEP_SUMMARY
+          if command -v jq &>/dev/null; then
+            jq -r '
+              .vulnerabilities // {} | to_entries[] |
+              "| \(.key) | \(.value.severity) | \(.value.via[0].url // "n/a") |"
+            ' audit-backend.json \
+              | { echo "| Package | Severity | Advisory |"; echo "|---|---|---|"; cat; } \
+              >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No vulnerabilities found." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail on high/critical vulnerabilities
+        run: npm audit --audit-level=high
+
+  # ── 3. npm audit — Frontend ─────────────────────────────────────────────────
+  audit-frontend:
+    name: npm audit · Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies (CI mode — no scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Run npm audit (fail on high/critical CVEs)
+        run: npm audit --audit-level=high --json | tee audit-frontend.json || true
+
+      - name: Display audit summary
+        if: always()
+        run: |
+          echo "### Frontend npm audit results" >> $GITHUB_STEP_SUMMARY
+          if command -v jq &>/dev/null; then
+            jq -r '
+              .vulnerabilities // {} | to_entries[] |
+              "| \(.key) | \(.value.severity) | \(.value.via[0].url // "n/a") |"
+            ' audit-frontend.json \
+              | { echo "| Package | Severity | Advisory |"; echo "|---|---|---|"; cat; } \
+              >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No vulnerabilities found." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail on high/critical vulnerabilities
+        run: npm audit --audit-level=high
+
+  # ── 4. OSV-Scanner — cross-ecosystem SCA ────────────────────────────────────
+  osv-scan:
+    name: OSV-Scanner (SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --recursive
+            --skip-git
+            ./
+        continue-on-error: true   # report findings without hard-blocking the build
