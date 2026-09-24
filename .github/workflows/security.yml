@@ -44,7 +44,7 @@ jobs:
       # Upload SARIF so findings appear in the Security → Code scanning tab
       - name: Upload TruffleHog SARIF (if present)
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trufflehog.sarif
         continue-on-error: true   # SARIF file is only created when findings exist
