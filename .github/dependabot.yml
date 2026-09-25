@@ -93,6 +93,19 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "next-auth"
         update-types: ["version-update:semver-major"]
+      # Tailwind v4 moved its PostCSS plugin to @tailwindcss/postcss and
+      # changed the config format entirely — requires a deliberate migration.
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      # TypeScript v7 drops CommonJS output and has breaking changes
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # @types/node major bumps can break TS compilation
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # autoprefixer major bumps may drop PostCSS compat
+      - dependency-name: "autoprefixer"
+        update-types: ["version-update:semver-major"]
 
   # ── GitHub Actions ──────────────────────────────────────────────────────────
   - package-ecosystem: "github-actions"
