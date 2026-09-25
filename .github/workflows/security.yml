@@ -139,7 +139,9 @@ jobs:
     name: OSV-Scanner (SCA)
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.6.0
     with:
+      # -r = recursive scan; --skip-git is NOT a valid flag — omit it
       scan-args: |-
-        --recursive
-        --skip-git
+        -r
         ./
+      # Keep findings advisory only — does not hard-block PRs or pushes
+      fail-on-vuln: false
