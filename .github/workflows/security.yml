@@ -131,18 +131,16 @@ jobs:
         run: npm audit --audit-level=high
 
   # ── 4. OSV-Scanner — cross-ecosystem SCA ────────────────────────────────────
+  # OSV-Scanner v2 is a reusable workflow (not a composite action).
+  # There is no @v2 alias — must pin to a full semver tag.
   osv-scan:
     name: OSV-Scanner (SCA)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run OSV-Scanner
-        uses: google/osv-scanner-action@v2
-        with:
-          scan-args: |-
-            --recursive
-            --skip-git
-            ./
-        continue-on-error: true   # report findings without hard-blocking the build
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.6.0
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./
+    # Non-blocking: findings are advisory only; they don't fail the build.
+    # Remove the line below if you want CVEs to hard-block merges.
+    continue-on-error: true
