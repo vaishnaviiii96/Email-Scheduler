@@ -13,8 +13,8 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
-    "@bull-board/api": "^9.8.0",
-    "@bull-board/express": "^9.8.0",
+    "@bull-board/api": "^9.10.1",
+    "@bull-board/express": "^9.10.1",
     "@elastic/elasticsearch": "^8.13.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/client": "^5.14.0",
