@@ -133,6 +133,7 @@ jobs:
   # ── 4. OSV-Scanner — cross-ecosystem SCA ────────────────────────────────────
   # OSV-Scanner v2 is a reusable workflow (not a composite action).
   # There is no @v2 alias — must pin to a full semver tag.
+  # Note: continue-on-error is NOT valid for reusable workflow calls.
   osv-scan:
     name: OSV-Scanner (SCA)
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.6.0
@@ -141,6 +142,3 @@ jobs:
         --recursive
         --skip-git
         ./
-    # Non-blocking: findings are advisory only; they don't fail the build.
-    # Remove the line below if you want CVEs to hard-block merges.
-    continue-on-error: true
