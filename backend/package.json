@@ -36,7 +36,7 @@
     "nodemailer": "^10.0.10",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "prisma": "^5.14.0",
+    "prisma": "^7.10.0",
     "resend": "^6.26.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
