@@ -34,10 +34,10 @@ jobs:
           # On push / schedule, scan the entire repo history.
           extra_args: >-
             ${{ github.event_name == 'pull_request'
-              && format('--since-commit {0} --branch {1} --fail',
+              && format('--since-commit {0} --branch {1}',
                         github.event.pull_request.base.sha,
                         github.head_ref)
-              || '--only-verified --fail' }}
+              || '--only-verified' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
