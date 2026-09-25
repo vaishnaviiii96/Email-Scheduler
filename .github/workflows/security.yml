@@ -24,30 +24,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Fetch full history so TruffleHog can diff against the base branch
-          fetch-depth: 0
+          fetch-depth: 0  # full history required for both scan modes
 
-      - name: Run TruffleHog (diff scan on PRs, full scan on push/schedule)
+      # PR mode: scan only the commits introduced by this PR (fast, targeted)
+      # Known limitation: secrets committed before the PR base SHA are not scanned here;
+      # the weekly schedule job covers full history.
+      - name: TruffleHog — PR diff scan
+        if: github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@main
         with:
-          # On a PR, scan only the commits added in this PR.
-          # On push / schedule, scan the entire repo history.
-          extra_args: >-
-            ${{ github.event_name == 'pull_request'
-              && format('--since-commit {0} --branch {1}',
-                        github.event.pull_request.base.sha,
-                        github.head_ref)
-              || '--only-verified' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: ./
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.sha }}
+          extra_args: --only-verified
 
-      # Upload SARIF so findings appear in the Security → Code scanning tab
-      - name: Upload TruffleHog SARIF (if present)
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+      # Push / schedule mode: scan entire repo history
+      # Known limitation: --only-verified skips rotated credentials that no longer
+      # authenticate, even if the raw value remains readable in git history.
+      - name: TruffleHog — full history scan
+        if: github.event_name != 'pull_request'
+        uses: trufflesecurity/trufflehog@main
         with:
-          sarif_file: trufflehog.sarif
-        continue-on-error: true   # SARIF file is only created when findings exist
+          path: ./
+          extra_args: --only-verified
 
   # ── 2. npm audit — Backend ──────────────────────────────────────────────────
   audit-backend:
